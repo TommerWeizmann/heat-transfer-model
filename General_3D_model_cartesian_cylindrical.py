@@ -20,7 +20,18 @@ from scipy.ndimage import zoom
 #Step 6: Store results
 #------------------------------------------------------------------------------------------
 #Cubical surface function:
-
+#The function takes the following parameters:
+#length - domain length in the z direction
+#step_number - Grid_size
+#total_time - running time of the simulation
+#rho - density of the material (various rho values and other thermal parameters are given the main part)
+#c - specific latent heat
+#k - thermal conductivity
+#P - laser power (source power)
+#Sigma - Pulse duration 
+#T0 = initial temperature (set to 20 to simulate room temperature
+#mu_a - absorption coefficient (varries with differnet parameters, but given rough values in the main part)
+#track_centre - tracking the centre of the laser for different grids
 def solve_heat_equation_3D(length, step_number, dt, total_time, rho, c, k, P, w, sigma, T0, mu_a, track_center=False):
     I0 = P / (np.pi * w**2)
     alpha = k / (rho * c)
@@ -40,7 +51,8 @@ def solve_heat_equation_3D(length, step_number, dt, total_time, rho, c, k, P, w,
 
     for t in range(time_steps):
         current_time = t * dt
-
+        #The source term is made of spatial and temporal term multiplied together
+        #They are both seperated for simplicity and merged together for the source_term 
         spatial_term = np.exp(-(X ** 2 + Y**2) / w**2) * np.exp(-Z / delta)
         temporal_term = np.exp(-((current_time)**2) / (2 * sigma ** 2))
         source_term = ((I0 * mu_a) / (rho * c)) * spatial_term * temporal_term
@@ -61,6 +73,7 @@ def solve_heat_equation_3D(length, step_number, dt, total_time, rho, c, k, P, w,
         T = T_new
 
         # Neumann boundary conditions (zero gradient)
+        #Completley insulated material such that no heat is escaping
         T[0,:,:] = T[1,:,:]
         T[-1,:,:] = T[-2,:,:]
         T[:,0,:] = T[:,1,:]
@@ -72,7 +85,8 @@ def solve_heat_equation_3D(length, step_number, dt, total_time, rho, c, k, P, w,
         return T, max_T_overall, np.array(center_temps)
     else:
         return T, max_T_overall
-
+#This is the same as the previous function but in cylindrical coordinates. 
+#Only difference is that now we are taking into account the radius of the surface rather then the x-y distances.
 #Circular surface function:
 def solve_heat_equation_3D_circular(length, step_number, dt, total_time, rho, c, k, P, w, sigma, T0, mu_a, track_center=False):
     I0 = P / (np.pi * w**2)
