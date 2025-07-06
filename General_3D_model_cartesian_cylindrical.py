@@ -19,141 +19,17 @@ from scipy.ndimage import zoom
 #   Step 5.4: Apply boundary conditions T(x,y,z,t) = T0(x,y,z) and dT/dn = 0 at the boundaries
 #Step 6: Store results
 #------------------------------------------------------------------------------------------
-#Cubical surface function:
-#The function takes the following parameters:
-#length - domain length in the z direction
-#step_number - Grid_size
-#total_time - running time of the simulation
-#rho - density of the material (various rho values and other thermal parameters are given the main part)
-#c - specific latent heat
-#k - thermal conductivity
-#P - laser power (source power)
-#Sigma - Pulse duration 
-#T0 = initial temperature (set to 20 to simulate room temperature
-#mu_a - absorption coefficient (varries with differnet parameters, but given rough values in the main part)
-#track_centre - tracking the centre of the laser for different grids
-def solve_heat_equation_3D(length, step_number, dt, total_time, rho, c, k, P, w, sigma, T0, mu_a, track_center=False):
-    I0 = P / (np.pi * w**2)
-    alpha = k / (rho * c)
-    delta = 1 / mu_a
-    dx = dy = dz = length / (step_number - 1)
-    time_steps = max(1, int(total_time / dt))
 
-    T = np.full((step_number, step_number, step_number), T0, dtype=float)
-    X = (np.arange(step_number) - step_number // 2) * dx
-    Y = (np.arange(step_number) - step_number // 2) * dy
-    Z = np.arange(step_number) * dz
-    X, Y, Z = np.meshgrid(X, Y, Z, indexing='ij')
-
-    max_T_overall = T0  # Track the highest temperature reached at any time
-    center_temps = []   # Track center temperature over time if requested
-    center_idx = step_number // 2
-
-    for t in range(time_steps):
-        current_time = t * dt
-        #The source term is made of spatial and temporal term multiplied together
-        #They are both seperated for simplicity and merged together for the source_term 
-        spatial_term = np.exp(-(X ** 2 + Y**2) / w**2) * np.exp(-Z / delta)
-        temporal_term = np.exp(-((current_time)**2) / (2 * sigma ** 2))
-        source_term = ((I0 * mu_a) / (rho * c)) * spatial_term * temporal_term
-
-        laplacian = np.zeros_like(T)
-        laplacian[1:-1,1:-1,1:-1] = (
-            (T[2:,1:-1,1:-1] + T[:-2,1:-1,1:-1] - 2*T[1:-1,1:-1,1:-1]) / dx**2 +
-            (T[1:-1,2:,1:-1] + T[1:-1,:-2,1:-1] - 2*T[1:-1,1:-1,1:-1]) / dy**2 +
-            (T[1:-1,1:-1,2:] + T[1:-1,1:-1,:-2] - 2*T[1:-1,1:-1,1:-1]) / dz**2
-        )
-
-        T_new = T + dt * (alpha * laplacian + source_term)
-        max_T_overall = max(max_T_overall, np.max(T_new))  # Track max at each step
-
-        if track_center:
-            center_temps.append(T_new[center_idx, center_idx, center_idx])
-
-        T = T_new
-
-        # Neumann boundary conditions (zero gradient)
-        #Completley insulated material such that no heat is escaping
-        T[0,:,:] = T[1,:,:]
-        T[-1,:,:] = T[-2,:,:]
-        T[:,0,:] = T[:,1,:]
-        T[:,-1,:] = T[:,-2,:]
-        T[:,:,0] = T[:,:,1]
-        T[:,:,-1] = T[:,:,-2]
-
-    if track_center:
-        return T, max_T_overall, np.array(center_temps)
-    else:
-        return T, max_T_overall
-#This is the same as the previous function but in cylindrical coordinates. 
-#Only difference is that now we are taking into account the radius of the surface rather then the x-y distances.
-#Circular surface function:
-def solve_heat_equation_3D_circular(length, step_number, dt, total_time, rho, c, k, P, w, sigma, T0, mu_a, track_center=False):
-    I0 = P / (np.pi * w**2)
-    alpha = k / (rho * c)
-    delta = 1 / mu_a
-    dx = dy = dz = length / (step_number - 1)
-    time_steps = max(1, int(total_time / dt))
-
-    T = np.full((step_number, step_number, step_number), T0, dtype=float)
-    X = (np.arange(step_number) - step_number // 2) * dx
-    Y = (np.arange(step_number) - step_number // 2) * dy
-    Z = np.arange(step_number) * dz
-    X, Y, Z = np.meshgrid(X, Y, Z, indexing='ij')
-    r = np.sqrt(X **2 + Y **2)
-
-    max_T_overall = T0
-    center_temps = []
-    center_idx = step_number // 2
-
-    for t in range(time_steps):
-        current_time = t * dt
-
-        spatial_term = np.exp(-(r**2) / w**2) * np.exp(-Z / delta)
-        temporal_term = np.exp(-((current_time)**2) / (2 * sigma ** 2))
-        source_term = ((I0 * mu_a) / (rho * c)) * spatial_term * temporal_term
-
-        laplacian = np.zeros_like(T)
-        laplacian[1:-1,1:-1,1:-1] = (
-            (T[2:,1:-1,1:-1] + T[:-2,1:-1,1:-1] - 2*T[1:-1,1:-1,1:-1]) / dx**2 +
-            (T[1:-1,2:,1:-1] + T[1:-1,:-2,1:-1] - 2*T[1:-1,1:-1,1:-1]) / dy**2 +
-            (T[1:-1,1:-1,2:] + T[1:-1,1:-1,:-2] - 2*T[1:-1,1:-1,1:-1]) / dz**2
-        )
-
-        T_new = T + dt * (alpha * laplacian + source_term)
-        max_T_overall = max(max_T_overall, np.max(T_new))
-        if track_center:
-            center_temps.append(T_new[center_idx, center_idx, center_idx])
-        T = T_new
-
-        # Neumann boundary conditions (zero gradient)
-        T[0,:,:] = T[1,:,:]
-        T[-1,:,:] = T[-2,:,:]
-        T[:,0,:] = T[:,1,:]
-        T[:,-1,:] = T[:,-2,:]
-        T[:,:,0] = T[:,:,1]
-        T[:,:,-1] = T[:,:,-2]
-
-    if track_center:
-        return T, max_T_overall, np.array(center_temps)
-    else:
-        return T
-
-#Main program here:
-#How to use: 
-#------------
-#Choose the model you wish (square/circular surface)
-#Choose the parameters you wish to use
-#Choose the thermal and optical properties to simulate the model as close to reality as possible
-#To run experiments varrying various parametrs, generate list and loop through the lists to generate data
-
-#Defult parameters here: 
-length = 0.003 #3 cm - sweet spot
+# ===== GLOBAL PARAMETERS =====
+# Geometry and grid parameters
+length = 0.003  # 3 cm - sweet spot
 step_number = 30
 dz = length / (step_number - 1)
-P = 0.8 #Watts 
-sigma = 1e-4 #seconds
-T0 = 20 #Room temperature
+
+# Laser parameters
+P = 0.1  # Watts (reduced to prevent numerical issues)
+sigma = 1e-3  # seconds (increased for longer pulse)
+T0 = 20  # Room temperature
 
 # Metal properties (k: W/mK, rho: kg/m3, c: J/kgK)
 # Source: typical values, check materials handbooks for precise data
@@ -176,17 +52,19 @@ metal_properties = {
     "Bronze":      {"k": 60,   "rho": 8800,  "c": 380},
     "StainlessSteel": {"k": 16, "rho": 8000,  "c": 500},
 }
-# Example: select Aluminum
-k_thermal = metal_properties["Aluminum"]["k"]
-rho = metal_properties["Aluminum"]["rho"]
-c = metal_properties["Aluminum"]["c"]
+
+# Select material (change this to test different materials)
+material = "Aluminum"
+k_thermal = metal_properties[material]["k"]
+rho = metal_properties[material]["rho"]
+c = metal_properties[material]["c"]
 alpha = k_thermal / (rho * c)
 
-wavelength = 800e-9 #wavlength of 800nm, can vary as needed
+# Optical properties
+wavelength = 800e-9  # wavelength of 800nm, can vary as needed
 # Extinction coefficients (k) at 800 nm for each metal (approximate values)
 # THIS IS A ROUGH ESTIMATE LIST FOR THE SIMULATION 
-#In case of specific requirements for simulation, please measure/use confirmed values
-
+# In case of specific requirements for simulation, please measure/use confirmed values
 extinction_coefficients = {
     "Aluminum":    8.4,
     "Copper":      2.6,
@@ -206,56 +84,208 @@ extinction_coefficients = {
     "Bronze":      2.0,
     "StainlessSteel": 2.5,
 }
-k_optical = extinction_coefficients["Aluminum"]  # Change key as needed for other materials
-alpha = k_thermal / (rho * c)
-mu_a = ( 4 * np.pi * k_optical) / wavelength 
 
-#Applying stabillity condition
-dt =  dz ** 2 /(6 * alpha)
+k_optical = extinction_coefficients[material]
+mu_a = (4 * np.pi * k_optical) / wavelength
 
-# Example: Varying power and plotting max temperature for each
-power_values = [0.2e-3, 0.5e-3, 0.8e-3, 1.0e-3
-               ]  # Watts
-max_temps = []
-center_temps_list = []
+# Time step (stability condition)
+dt = dz**2 / (6 * alpha)
+
+# Simulation time
+total_time = 1e-2  # 10 ms simulation
+
+# ===== FUNCTIONS =====
+
+def solve_heat_equation_3D(w, track_center=False):
+    """
+    Solve 3D heat equation for cubical geometry
+    w: beam radius (m)
+    track_center: whether to track center temperature over time
+    """
+    I0 = P / (np.pi * w**2)
+    delta = 1 / mu_a
+    dx = dy = dz
+    time_steps = max(1, int(total_time / dt))
+
+    T = np.full((step_number, step_number, step_number), T0, dtype=float)
+    X = (np.arange(step_number) - step_number // 2) * dx
+    Y = (np.arange(step_number) - step_number // 2) * dy
+    Z = np.arange(step_number) * dz
+    X, Y, Z = np.meshgrid(X, Y, Z, indexing='ij')
+
+    max_T_overall = T0
+    center_temps = []
+    center_idx = step_number // 2
+
+    for t in range(time_steps):
+        current_time = t * dt
+        
+        # Source term
+        spatial_term = np.exp(-(X**2 + Y**2) / w**2) * np.exp(-Z / delta)
+        temporal_term = np.exp(-((current_time)**2) / (2 * sigma**2))
+        source_term = ((I0 * mu_a) / (rho * c)) * spatial_term * temporal_term
+
+        # Diagnostic print for first time step
+        if t == 0:
+            print(f"3D - Beam radius: {w}, Source max: {np.max(source_term):.2e}")
+
+        laplacian = np.zeros_like(T)
+        laplacian[1:-1,1:-1,1:-1] = (
+            (T[2:,1:-1,1:-1] + T[:-2,1:-1,1:-1] - 2*T[1:-1,1:-1,1:-1]) / dx**2 +
+            (T[1:-1,2:,1:-1] + T[1:-1,:-2,1:-1] - 2*T[1:-1,1:-1,1:-1]) / dy**2 +
+            (T[1:-1,1:-1,2:] + T[1:-1,1:-1,:-2] - 2*T[1:-1,1:-1,1:-1]) / dz**2
+        )
+
+        T_new = T + dt * (alpha * laplacian + source_term)
+        max_T_overall = max(max_T_overall, np.max(T_new))
+
+        if track_center:
+            center_temps.append(T_new[center_idx, center_idx, center_idx])
+
+        T = T_new
+
+        # Neumann boundary conditions (zero gradient)
+        T[0,:,:] = T[1,:,:]
+        T[-1,:,:] = T[-2,:,:]
+        T[:,0,:] = T[:,1,:]
+        T[:,-1,:] = T[:,-2,:]
+        T[:,:,0] = T[:,:,1]
+        T[:,:,-1] = T[:,:,-2]
+
+    if track_center:
+        return T, max_T_overall, np.array(center_temps)
+    else:
+        return T, max_T_overall
+
+def solve_heat_equation_cylindrical(w, track_center=False):
+    """
+    Solve 2D heat equation for cylindrical geometry (r-z plane)
+    w: beam radius (m)
+    track_center: whether to track center temperature over time
+    """
+    I0 = P / (np.pi * w**2)
+    delta = 1 / mu_a
+    dr = dz
+    time_steps = max(1, int(total_time / dt))
+
+    T = np.full((step_number, step_number), T0, dtype=float)  # T[r, z]
+    r_vals = np.linspace(0, length, step_number)
+    z_vals = np.linspace(0, length, step_number)
+    R, Z = np.meshgrid(r_vals, z_vals, indexing='ij')
+
+    max_T_overall = T0
+    center_temps = []
+
+    for t in range(time_steps):
+        current_time = t * dt
+        
+        # Source term
+        spatial_term = np.exp(-(R**2) / w**2) * np.exp(-Z / delta)
+        temporal_term = np.exp(-((current_time)**2) / (2 * sigma**2))
+        source_term = ((I0 * mu_a) / (rho * c)) * spatial_term * temporal_term
+
+        # Diagnostic print for first time step
+        if t == 0:
+            print(f"Cylindrical - Beam radius: {w}, Source max: {np.max(source_term):.2e}")
+
+        laplacian = np.zeros_like(T)
+
+        # Correct cylindrical Laplacian
+        for i in range(1, step_number - 1):
+            r = r_vals[i]
+            for j in range(1, step_number - 1):
+                # ∂²T/∂r² term
+                dr2_term = (T[i+1, j] - 2*T[i, j] + T[i-1, j]) / dr**2
+                # (1/r) ∂T/∂r term
+                dr_term = (1/r) * (T[i+1, j] - T[i-1, j]) / (2 * dr)
+                # ∂²T/∂z² term
+                dz_term = (T[i, j+1] - 2*T[i, j] + T[i, j-1]) / dz**2
+                
+                laplacian[i, j] = dr2_term + dr_term + dz_term
+
+        # Special handling for r=0 (axis of symmetry)
+        for j in range(1, step_number - 1):
+            # At r=0, use L'Hôpital's rule: lim(r→0) (1/r) ∂T/∂r = ∂²T/∂r²
+            dr2_term = (T[1, j] - 2*T[0, j] + T[1, j]) / dr**2  # Symmetric about r=0
+            dz_term = (T[0, j+1] - 2*T[0, j] + T[0, j-1]) / dz**2
+            laplacian[0, j] = 2 * dr2_term + dz_term  # Factor of 2 from L'Hôpital's rule
+
+        T_new = T + dt * (alpha * laplacian + source_term)
+
+        # Debug: Check if temperature is updating
+        if t == 0:
+            print(f"After first update, max T: {np.max(T_new):.2f}")
+
+        # TRACK MAXIMUM TEMPERATURE BEFORE APPLYING BOUNDARY CONDITIONS
+        max_T_overall = max(max_T_overall, np.max(T_new))
+
+        if track_center:
+            center_temps.append(T_new[0, step_number//2])  # r=0, center z
+
+        # Apply boundary conditions AFTER tracking max temperature
+        T_new[0, :] = T_new[1, :]  # r=0 boundary
+        T_new[-1, :] = T_new[-2, :]  # r=L boundary
+        T_new[:, 0] = T_new[:, 1]  # z=0 boundary
+        T_new[:, -1] = T_new[:, -2]  # z=L boundary
+
+        T = T_new
+
+    if track_center:
+        return T, max_T_overall, np.array(center_temps)
+    else:
+        return T, max_T_overall
+# ===== MAIN PROGRAM =====
+#How to use: 
+#------------
+#Choose the model you wish (square/circular surface)
+#Choose the parameters you wish to use
+#Choose the thermal and optical properties to simulate the model as close to reality as possible
+#To run experiments varrying various parametrs, generate list and loop through the lists to generate data
+
+# Example 1: Varying power for 3D cubical geometry
+print("=== 3D Cubical Geometry - Power Variation ===")
+power_values = [0.01, 0.05, 0.1, 0.2, 0.5, 1.0]  # Watts
+max_temps_3D = []
+center_temps_list_3D = []
 
 for P_test in power_values:
+    P = P_test  # Update global P
     T_result, max_T_overall, center_temps = solve_heat_equation_3D(
-        length, step_number, dt, total_time=1e-3,  # 1 ms simulation
-        rho=rho, c=c, k=k_thermal, P=P_test, w=0.0005, sigma=sigma, T0=T0, mu_a=mu_a,
-        track_center=True
+        w=0.001, track_center=True
     )
-    max_temps.append(max_T_overall)
-    center_temps_list.append(center_temps)
-    print(f"Power: ", P_test, f"Max temperature: ", max_T_overall)
+    max_temps_3D.append(max_T_overall)
+    center_temps_list_3D.append(center_temps)
+    print(f"Power: {P_test} W, Max temperature: {max_T_overall:.2f}°C")
 
-plt.figure()
-plt.plot(power_values, max_temps, marker='o')
+plt.figure(figsize=(12, 5))
+plt.subplot(1, 2, 1)
+plt.plot(power_values, max_temps_3D, marker='o', linewidth=2, markersize=8)
 plt.xlabel('Laser Power (W)')
 plt.ylabel('Max Temperature (°C)')
-plt.title('Max Temperature (any time) vs Laser Power')
+plt.title('3D Cubical - Max Temperature vs Laser Power')
 plt.grid(True)
-plt.show()
-#Results as excepted, nearly dosent vary but with linear increaese. As before
 
-#Example 2: Varrying beam radius for the circular surface
-beam_radius_list = [0.000005,0.00005,0.0005, 0.005, 0.05, 0.5]
-max_temps_beam = []
+# Example 2: Varying beam radius for cylindrical geometry
+print("\n=== Cylindrical Geometry - Beam Radius Variation ===")
+beam_radius_list = [0.0001,0.001, 0.005, 0.01, 0.05, 0.1, 0.5]
+max_temps_cyl = []
 
+P = 0.1  # Reset to original power
 for beam_test in beam_radius_list:
-    T_result, max_T_overall, centre_temp = solve_heat_equation_3D_circular(
-        length, step_number, dt, total_time = 1e-3,
-        rho = rho, c = c, k = k_thermal, P = P_test, w = beam_test, sigma = sigma, T0 = T0, mu_a = mu_a,
-        track_center=True
+    T_result, max_T_overall, centre_temp = solve_heat_equation_cylindrical(
+        w=beam_test, track_center=True
     )
-    max_temps_beam.append(max_T_overall)
-    print(f"Beam Radius: ", beam_test, f" Max temperature: ", max_T_overall)
+    max_temps_cyl.append(max_T_overall)
+    print(f"Beam Radius: {beam_test} m, Max temperature: {max_T_overall:.2f}°C")
 
-plt.figure()
-plt.scatter(beam_radius_list, max_temps_beam, marker='o')
-plt.xscale('log')  # Optional: log scale for better visualization
+plt.subplot(1, 2, 2)
+plt.scatter(beam_radius_list, max_temps_cyl, marker='o', s=100)
 plt.grid(True)
 plt.xlabel("Beam radius (m)")
 plt.ylabel("Max Temperature (°C)")
-plt.title("Max Temperature vs Beam radius")
-plt.show() #Similar results to before. 
+plt.title("Cylindrical - Max Temperature vs Beam radius")
+
+plt.tight_layout()
+plt.show()
+#Results are the same as before.
+#Values tends to increase as 1/r**2 for smaller beam radius
