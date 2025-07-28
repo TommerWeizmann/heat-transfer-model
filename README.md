@@ -10,10 +10,9 @@ This repository contains a 3D analytical model solving the heat equation with a 
 - The model’s sweet spot for domain length is 3 cm; beyond this, errors do not significantly reduce despite increased computational cost, while shorter domains show high relative errors.
 - Accuracy of the model increases with a power law such that Error $\propto$ $T^{r}$, where $r = 1.15$.
 
+
 The model assumes constant material properties and ideal boundary conditions, making it suitable for controlled environments like laboratory simulations.
 
 ### Important Note on the Absorption Coefficient (μₐ)
 The current computational model omits the absorption coefficient (μₐ) as a simplification. While this affects the absolute temperature scale, it does not change qualitative trends or conclusions. This choice helps highlight visual results without extremely large or small values. Future versions may incorporate μₐ for more accurate energy scaling.
 
-### Further Work
--**Develop a new model incorporating heat flux and apply machine learning techniques again** -This will help validate the robustness of the mathematical model across a wider range of conditions. Eventually, it may be possible to integrate multiple models into a flexible framework, allowing researchers to customize parameters such as geometry, insulation type, metal type, and more.
